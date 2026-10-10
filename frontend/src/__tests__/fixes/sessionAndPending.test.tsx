@@ -72,6 +72,7 @@ function detail(roasts: Roast[]): SubmissionDetail {
     assignment_brief: null,
     language: 'python',
     source_type: 'paste',
+    source_url: null,
     code_content: 'print(1)',
     created_at: '2026-10-01T00:00:00Z',
     updated_at: null,

@@ -9,11 +9,21 @@ export interface SubmissionFieldValues {
 
 export type SubmissionFieldErrors = Partial<Record<keyof SubmissionFieldValues, string>>;
 
+export interface ValidateFieldsOptions {
+  /** When true an empty title is allowed (e.g. GitHub commits default to the commit message). */
+  titleOptional?: boolean;
+}
+
 /** Validate title / brief. Returns an errors object (empty when valid). */
-export function validateSubmissionFields(values: SubmissionFieldValues): SubmissionFieldErrors {
+export function validateSubmissionFields(
+  values: SubmissionFieldValues,
+  { titleOptional = false }: ValidateFieldsOptions = {},
+): SubmissionFieldErrors {
   const errors: SubmissionFieldErrors = {};
   const title = values.title.trim();
-  if (!title) errors.title = 'Title is required.';
+  if (!title) {
+    if (!titleOptional) errors.title = 'Title is required.';
+  }
   else if (title.length > MAX_TITLE_CHARS) errors.title = `Title must be at most ${MAX_TITLE_CHARS} characters.`;
   if (values.brief.length > MAX_BRIEF_CHARS) {
     errors.brief = `Assignment brief must be at most ${MAX_BRIEF_CHARS} characters.`;

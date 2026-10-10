@@ -36,6 +36,7 @@ function submission(overrides: Partial<SubmissionListItem>): SubmissionListItem 
     title: 'Untitled',
     language: 'python',
     source_type: 'paste',
+    source_url: null,
     created_at: '2026-10-01T00:00:00Z',
     updated_at: null,
     roast_count: 0,

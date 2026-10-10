@@ -37,6 +37,7 @@ import {
   FiSun,
   FiUser,
 } from 'react-icons/fi';
+import { FaGithub } from 'react-icons/fa';
 import { useAuth } from '../../hooks/useAuth';
 import { GradientButton } from '../ui/GradientButton';
 import { LoadingScreen } from '../ui/LoadingScreen';
@@ -52,6 +53,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', to: '/dashboard', icon: FiGrid },
   { label: 'Submissions', to: '/submissions', icon: FiFileText },
+  { label: 'GitHub Roast 🔥', to: '/github-roast', icon: FaGithub },
   { label: 'Settings', to: '/settings', icon: FiSettings },
   { label: 'Admin', to: '/admin', icon: FiShield, adminOnly: true },
 ];

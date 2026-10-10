@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Literal
 
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -107,6 +107,20 @@ class Settings(BaseSettings):
     MAX_ZIP_SIZE_BYTES: int = 5_242_880
     MAX_FILES_PER_SUBMISSION: int = 20
     MAX_CODE_CHARS: int = 100_000
+
+    # GitHub (commit roasting)
+    #: Optional token: raises the API rate limit from 60 to 5000 requests/hour and allows
+    #: reading private repositories the token has access to. Never logged.
+    GITHUB_TOKEN: str = ""
+    GITHUB_TIMEOUT_SECONDS: float = 10.0
+
+    @field_validator("GITHUB_TIMEOUT_SECONDS", mode="before")
+    @classmethod
+    def _default_github_timeout(cls, value: object) -> object:
+        """Treat an empty ``GITHUB_TIMEOUT_SECONDS=`` entry as "use the default"."""
+        if isinstance(value, str) and not value.strip():
+            return 10.0
+        return value
 
     # HTTP
     RATE_LIMIT_ENABLED: bool = True

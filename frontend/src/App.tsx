@@ -26,6 +26,7 @@ const SubmissionsPage = lazy(() => import('./pages/SubmissionsPage'));
 const NewSubmissionPage = lazy(() => import('./pages/NewSubmissionPage'));
 const SubmissionDetailPage = lazy(() => import('./pages/SubmissionDetailPage'));
 const EditSubmissionPage = lazy(() => import('./pages/EditSubmissionPage'));
+const GithubRoastPage = lazy(() => import('./pages/GithubRoastPage'));
 
 // Admin pages
 const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'));
@@ -62,6 +63,7 @@ export function AppRoutes() {
           <Route path="/submissions/new" element={<NewSubmissionPage />} />
           <Route path="/submissions/:id" element={<SubmissionDetailPage />} />
           <Route path="/submissions/:id/edit" element={<EditSubmissionPage />} />
+          <Route path="/github-roast" element={<GithubRoastPage />} />
         </Route>
 
         {/* Admin */}

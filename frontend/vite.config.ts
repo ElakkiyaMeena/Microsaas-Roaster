@@ -14,12 +14,23 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    chunkSizeWarningLimit: 700,
     rollupOptions: {
       output: {
+        // React, its JSX runtime and the UI libraries that import it must share one chunk:
+        // splitting them created a circular chunk import that crashed the app on load
+        // ("Cannot read properties of undefined (reading 'jsxs')").
         manualChunks: {
-          react: ['react', 'react-dom', 'react-router-dom'],
-          chakra: ['@chakra-ui/react', '@emotion/react', '@emotion/styled'],
-          motion: ['framer-motion'],
+          vendor: [
+            'react',
+            'react-dom',
+            'react/jsx-runtime',
+            'react-router-dom',
+            '@chakra-ui/react',
+            '@emotion/react',
+            '@emotion/styled',
+            'framer-motion',
+          ],
           data: ['@tanstack/react-query', 'axios'],
         },
       },

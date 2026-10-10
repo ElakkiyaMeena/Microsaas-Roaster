@@ -9,7 +9,7 @@
 
 export type RoastIntensity = 'mild' | 'medium' | 'savage';
 export type RoastStatus = 'pending' | 'completed' | 'failed';
-export type SourceType = 'paste' | 'upload';
+export type SourceType = 'paste' | 'upload' | 'github_commit';
 export type Language =
   | 'python'
   | 'javascript'
@@ -121,6 +121,8 @@ export interface SubmissionListItem {
   title: string;
   language: Language;
   source_type: SourceType;
+  /** Canonical commit URL for github_commit submissions; null otherwise. */
+  source_url: string | null;
   created_at: string;
   updated_at: string | null;
   roast_count: number;
@@ -133,6 +135,8 @@ export interface SubmissionDetail {
   assignment_brief: string | null;
   language: Language;
   source_type: SourceType;
+  /** Canonical `https://github.com/{owner}/{repo}/commit/{sha}` for github_commit; null otherwise. */
+  source_url: string | null;
   code_content: string;
   created_at: string;
   updated_at: string | null;
@@ -256,11 +260,21 @@ export interface UploadSubmissionPayload {
   files: File[];
 }
 
+/** JSON body for POST /submissions/github-commit. */
+export interface CreateGithubCommitPayload {
+  commit_url: string;
+  /** Defaults to the commit message's first line when omitted. */
+  title?: string;
+  assignment_brief?: string;
+  /** null / omitted = auto-detect from the changed files. */
+  language?: Language | null;
+}
+
 export interface UpdateSubmissionPayload {
   title?: string;
   assignment_brief?: string | null;
   language?: Language;
-  /** Only allowed for paste submissions (400 CODE_NOT_EDITABLE otherwise). */
+  /** Only allowed for paste submissions (400 CODE_NOT_EDITABLE for upload / github_commit). */
   code_content?: string;
 }
 

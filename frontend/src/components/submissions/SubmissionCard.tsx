@@ -1,11 +1,12 @@
 import { Badge, Flex, HStack, LinkBox, LinkOverlay, Stack, Text } from '@chakra-ui/react';
 import { Link as RouterLink } from 'react-router-dom';
-import { FiClipboard, FiTrash2, FiUploadCloud } from 'react-icons/fi';
+import { FiTrash2 } from 'react-icons/fi';
 import type { SubmissionListItem } from '../../types';
 import { getLanguageLabel } from '../../types';
 import { GlassCard } from '../ui/GlassCard';
 import { formatDate, getScoreColorScheme } from '../roast/scoreColor';
 import { ActionButton } from './ActionButton';
+import { SOURCE_TYPE_META } from './sourceType';
 
 export interface SubmissionCardProps {
   submission: SubmissionListItem;
@@ -15,7 +16,8 @@ export interface SubmissionCardProps {
 /** Card for one submission in the list. Whole card links to the detail page. */
 export function SubmissionCard({ submission, onDelete }: SubmissionCardProps) {
   const scheme = getScoreColorScheme(submission.latest_score);
-  const isUpload = submission.source_type === 'upload';
+  const source = SOURCE_TYPE_META[submission.source_type] ?? SOURCE_TYPE_META.paste;
+  const SourceIcon = source.icon;
 
   return (
     <LinkBox as="article" aria-label={submission.title}>
@@ -32,8 +34,8 @@ export function SubmissionCard({ submission, onDelete }: SubmissionCardProps) {
                 {getLanguageLabel(submission.language)}
               </Badge>
               <Badge variant="outline" display="inline-flex" alignItems="center" gap={1}>
-                {isUpload ? <FiUploadCloud aria-hidden="true" /> : <FiClipboard aria-hidden="true" />}
-                {isUpload ? 'Upload' : 'Paste'}
+                <SourceIcon aria-hidden="true" />
+                {source.label}
               </Badge>
               <Text fontSize="xs" color="text.muted">
                 {formatDate(submission.created_at)}

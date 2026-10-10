@@ -19,14 +19,36 @@ export interface SubmissionFieldsProps {
   errors: SubmissionFieldErrors;
   onChange: <K extends keyof SubmissionFieldValues>(field: K, value: SubmissionFieldValues[K]) => void;
   isDisabled?: boolean;
+  /** Title not required (shows "(optional)" and no required marker). */
+  titleOptional?: boolean;
+  /** Override the title placeholder. */
+  titlePlaceholder?: string;
+  /**
+   * When provided, the language select gets a first "Auto-detect" option.
+   * `selected` controls whether it is the current choice.
+   */
+  autoDetect?: {
+    selected: boolean;
+    onSelect: (selected: boolean) => void;
+  };
 }
+
+const AUTO_DETECT_VALUE = '__auto__';
 
 function isLanguage(value: string): value is Language {
   return LANGUAGES.some((l) => l.value === value);
 }
 
 /** Title, language and assignment-brief fields shared by the new/edit submission pages. */
-export function SubmissionFields({ values, errors, onChange, isDisabled = false }: SubmissionFieldsProps) {
+export function SubmissionFields({
+  values,
+  errors,
+  onChange,
+  isDisabled = false,
+  titleOptional = false,
+  titlePlaceholder = 'e.g. Week 3 — Todo API',
+  autoDetect,
+}: SubmissionFieldsProps) {
   const briefOver = values.brief.length > MAX_BRIEF_CHARS;
   return (
     <Stack spacing={5}>
@@ -34,17 +56,17 @@ export function SubmissionFields({ values, errors, onChange, isDisabled = false 
         <AnimatedInput
           id="submission-title"
           name="title"
-          label="Title"
-          placeholder="e.g. Week 3 — Todo API"
+          label={titleOptional ? 'Title (optional)' : 'Title'}
+          placeholder={titlePlaceholder}
           value={values.title}
           onChange={(e) => onChange('title', e.target.value)}
           error={errors.title}
-          isRequired
+          isRequired={!titleOptional}
           isDisabled={isDisabled}
           maxLength={MAX_TITLE_CHARS + 20}
           controlProps={{ flex: 2 }}
         />
-        <FormControl flex={1} isRequired isDisabled={isDisabled}>
+        <FormControl flex={1} isRequired={!autoDetect} isDisabled={isDisabled}>
           <FormLabel htmlFor="submission-language" fontSize="sm" fontWeight="medium">
             Language
           </FormLabel>
@@ -53,11 +75,20 @@ export function SubmissionFields({ values, errors, onChange, isDisabled = false 
             size="lg"
             borderRadius="xl"
             borderWidth="2px"
-            value={values.language}
+            value={autoDetect?.selected ? AUTO_DETECT_VALUE : values.language}
             onChange={(e) => {
-              if (isLanguage(e.target.value)) onChange('language', e.target.value);
+              const next = e.target.value;
+              if (autoDetect && next === AUTO_DETECT_VALUE) {
+                autoDetect.onSelect(true);
+                return;
+              }
+              if (isLanguage(next)) {
+                autoDetect?.onSelect(false);
+                onChange('language', next);
+              }
             }}
           >
+            {autoDetect && <option value={AUTO_DETECT_VALUE}>Auto-detect</option>}
             {LANGUAGES.map((lang) => (
               <option key={lang.value} value={lang.value}>
                 {lang.label}

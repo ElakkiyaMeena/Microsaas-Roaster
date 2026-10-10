@@ -14,6 +14,7 @@ import {
   Heading,
   HStack,
   Icon,
+  Link,
   List,
   ListItem,
   Stack,
@@ -29,6 +30,7 @@ import {
   FiRefreshCw,
   FiTrash2,
 } from 'react-icons/fi';
+import { FaGithub } from 'react-icons/fa';
 import { PageWrapper } from '../components/layout/PageWrapper';
 import { GlassCard } from '../components/ui/GlassCard';
 import { GradientButton } from '../components/ui/GradientButton';
@@ -45,10 +47,12 @@ import { ActionButton } from '../components/submissions/ActionButton';
 import { ConfirmDeleteDialog } from '../components/submissions/ConfirmDeleteDialog';
 import { SubmissionNotFound } from '../components/submissions/SubmissionNotFound';
 import { formatBytes } from '../components/submissions/uploadValidation';
+import { getSourceTypeLabel } from '../components/submissions/sourceType';
 import { useAuth } from '../hooks/useAuth';
 import { useCreateRoast, useRoastQuota } from '../hooks/useRoasts';
 import { useDeleteSubmission, useSubmission } from '../hooks/useSubmissions';
 import { getErrorCode, getErrorMessage, getErrorStatus } from '../lib/errors';
+import { shortCommitLabel } from '../lib/github';
 import { hasActivePendingRoast, isRoastTimedOut, PENDING_POLL_INTERVAL_MS } from '../lib/roastStatus';
 import type { Roast, RoastIntensity } from '../types';
 import { getIntensityOption, getLanguageLabel } from '../types';
@@ -173,6 +177,7 @@ export default function SubmissionDetailPage() {
   const selectedRoast: Roast | undefined =
     roasts.find((r) => r.id === selectedRoastId) ?? roasts[0];
   const isRoasting = createRoast.isPending;
+  const isGithubCommit = submission.source_type === 'github_commit';
   const outOfRoasts = quota.data !== undefined && quota.data.remaining <= 0;
 
   const runRoast = async (roastIntensity: RoastIntensity): Promise<void> => {
@@ -226,7 +231,34 @@ export default function SubmissionDetailPage() {
           </Heading>
           <HStack spacing={2} flexWrap="wrap">
             <Badge colorScheme="purple">{getLanguageLabel(submission.language)}</Badge>
-            <Badge variant="outline">{submission.source_type === 'upload' ? 'Upload' : 'Paste'}</Badge>
+            <Badge
+              variant="outline"
+              display="inline-flex"
+              alignItems="center"
+              gap={1}
+              colorScheme={isGithubCommit ? 'gray' : undefined}
+            >
+              {isGithubCommit && <FaGithub aria-hidden="true" />}
+              {getSourceTypeLabel(submission.source_type)}
+            </Badge>
+            {isGithubCommit && submission.source_url && (
+              <Link
+                href={submission.source_url}
+                isExternal
+                target="_blank"
+                rel="noopener noreferrer"
+                display="inline-flex"
+                alignItems="center"
+                gap={1}
+                fontSize="sm"
+                fontFamily="mono"
+                color="brand.400"
+                aria-label={`View commit ${shortCommitLabel(submission.source_url)} on GitHub`}
+              >
+                <FaGithub aria-hidden="true" />
+                {shortCommitLabel(submission.source_url)}
+              </Link>
+            )}
             <Text fontSize="sm" color="text.muted">
               Created {formatDateTime(submission.created_at)}
             </Text>
@@ -323,9 +355,13 @@ export default function SubmissionDetailPage() {
 
             <GlassCard hoverable={false}>
               <Heading as="h2" size="sm" mb={3}>
-                Code
+                {isGithubCommit ? 'Commit diff' : 'Code'}
               </Heading>
-              <CodeViewer code={submission.code_content} language={submission.language} />
+              <CodeViewer
+                code={submission.code_content}
+                language={submission.language}
+                diff={isGithubCommit}
+              />
             </GlassCard>
           </Stack>
         </GridItem>

@@ -1,16 +1,18 @@
-"""Submissions endpoints: list, create (paste / upload), read, update and delete."""
+"""Submissions endpoints: list, create (paste / upload / GitHub commit), read, update, delete."""
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, Form, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile, status
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
+from app.rate_limit import limiter
 from app.schemas.common import Paginated, PaginationParams
 from app.schemas.submission import (
+    GitHubCommitSubmissionCreate,
     SubmissionCreate,
     SubmissionDetail,
     SubmissionListItem,
@@ -22,7 +24,8 @@ from app.services import roast_service, submission_service
 router = APIRouter(prefix="/submissions", tags=["submissions"])
 
 # Sync-DB endpoints are plain ``def`` (run in FastAPI's threadpool, never blocking the event
-# loop); only ``upload_submission`` is ``async`` because it awaits streamed file reads.
+# loop); only ``upload_submission`` and ``create_github_commit_submission`` are ``async``
+# because they await streamed file reads / the GitHub API.
 
 
 @router.get("", response_model=Paginated[SubmissionListItem])
@@ -65,6 +68,19 @@ async def upload_submission(
             [{**err, "loc": ("body", *err.get("loc", ()))} for err in exc.errors()]
         ) from exc
     submission = await submission_service.create_upload_submission(db, current_user.id, form, files)
+    return SubmissionDetail.model_validate(submission)
+
+
+@router.post("/github-commit", response_model=SubmissionDetail, status_code=status.HTTP_201_CREATED)
+@limiter.limit("20/minute")
+async def create_github_commit_submission(
+    request: Request,
+    body: GitHubCommitSubmissionCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SubmissionDetail:
+    """Create a submission from a public GitHub commit link (the diff is what gets roasted)."""
+    submission = await submission_service.create_github_commit_submission(db, current_user.id, body)
     return SubmissionDetail.model_validate(submission)
 
 

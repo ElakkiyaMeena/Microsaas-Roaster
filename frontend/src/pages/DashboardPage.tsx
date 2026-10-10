@@ -5,12 +5,14 @@ import {
   Flex,
   Heading,
   HStack,
+  Icon,
   SimpleGrid,
   Skeleton,
   Stack,
   Text,
 } from '@chakra-ui/react';
-import { FiActivity, FiAward, FiFileText, FiInbox, FiPlus } from 'react-icons/fi';
+import { FiActivity, FiArrowRight, FiAward, FiFileText, FiInbox, FiPlus } from 'react-icons/fi';
+import { FaGithub } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { PageWrapper } from '../components/layout/PageWrapper';
 import { AnimatedList } from '../components/ui/AnimatedList';
@@ -89,6 +91,35 @@ export default function DashboardPage() {
           helpText={latestScored ? latestScored.title : 'No roasts yet'}
         />
       </SimpleGrid>
+
+      <GlassCard mb={10} aria-label="Roast a GitHub commit">
+        <Flex
+          direction={{ base: 'column', sm: 'row' }}
+          align={{ base: 'flex-start', sm: 'center' }}
+          justify="space-between"
+          gap={4}
+        >
+          <HStack spacing={4} align="flex-start">
+            <Icon as={FaGithub} boxSize={10} color="brand.400" aria-hidden="true" />
+            <Stack spacing={1}>
+              <Heading as="h2" size="md">
+                Roast a GitHub commit
+              </Heading>
+              <Text color="text.muted">
+                Paste a public commit link and get the diff roasted in Tanglish.
+              </Text>
+            </Stack>
+          </HStack>
+          <GradientButton
+            leftIcon={<FaGithub />}
+            rightIcon={<FiArrowRight />}
+            onClick={() => navigate('/github-roast')}
+            flexShrink={0}
+          >
+            GitHub Roast 🔥
+          </GradientButton>
+        </Flex>
+      </GlassCard>
 
       <GlassCard hoverable={false}>
         <HStack justify="space-between" mb={4}>

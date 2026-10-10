@@ -14,12 +14,13 @@ from app.models.roast import Roast
 from app.models.submission import Submission, SubmissionFile
 from app.schemas.common import Paginated
 from app.schemas.submission import (
+    GitHubCommitSubmissionCreate,
     SubmissionCreate,
     SubmissionListItem,
     SubmissionUpdate,
     SubmissionUploadForm,
 )
-from app.services import upload_service
+from app.services import github_service, upload_service
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +107,7 @@ def list_submissions(
             Submission.title,
             Submission.language,
             Submission.source_type,
+            Submission.source_url,
             Submission.created_at,
             Submission.updated_at,
             roast_count.label("roast_count"),
@@ -208,6 +210,51 @@ async def create_upload_submission(
     return get_submission_detail(db, submission.id, user_id)
 
 
+async def create_github_commit_submission(
+    db: Session, user_id: int, data: GitHubCommitSubmissionCreate
+) -> Submission:
+    """
+    Create a submission from a public GitHub commit (its diff becomes the code to roast).
+
+    The commit is fetched from the GitHub REST API; nothing is written to disk and no
+    ``SubmissionFile`` rows are created.
+
+    Args:
+        db: Database session
+        user_id: Owner id
+        data: Validated request body (commit URL plus optional title / brief / language)
+
+    Returns:
+        The created submission with relationships loaded.
+
+    Raises:
+        BadRequestError: 400 ``INVALID_GITHUB_URL`` / ``NO_READABLE_FILES``.
+        AppException: 404 ``GITHUB_COMMIT_NOT_FOUND``, 429 ``GITHUB_RATE_LIMITED``,
+            502 ``GITHUB_UNAVAILABLE``.
+    """
+    ref = github_service.parse_commit_url(data.commit_url)
+    payload = await github_service.fetch_commit(ref)
+    content = github_service.build_commit_content(payload, ref)
+    submission = Submission(
+        user_id=user_id,
+        title=data.title or content.title_default,
+        assignment_brief=data.assignment_brief,
+        language=data.language or content.language_guess,
+        source_type=SourceType.GITHUB_COMMIT,
+        source_url=content.canonical_url,
+        code_content=content.code_content,
+    )
+    db.add(submission)
+    db.commit()
+    logger.info(
+        "Created github_commit submission id=%s user_id=%s files=%d",
+        submission.id,
+        user_id,
+        content.file_count,
+    )
+    return get_submission_detail(db, submission.id, user_id)
+
+
 def update_submission(
     db: Session, submission_id: int, user_id: int, data: SubmissionUpdate
 ) -> Submission:
@@ -216,12 +263,16 @@ def update_submission(
 
     Raises:
         NotFoundError: 404 if missing or owned by another user.
-        BadRequestError: 400 ``CODE_NOT_EDITABLE`` when changing code of an uploaded submission.
+        BadRequestError: 400 ``CODE_NOT_EDITABLE`` when changing code of a non-pasted
+            (uploaded or GitHub commit) submission.
     """
     submission = get_owned_submission(db, submission_id, user_id)
     changes = data.model_dump(exclude_unset=True)
     if "code_content" in changes and submission.source_type != SourceType.PASTE:
-        raise BadRequestError("Code of uploaded submissions cannot be edited", "CODE_NOT_EDITABLE")
+        raise BadRequestError(
+            "Code of uploaded or GitHub commit submissions cannot be edited",
+            "CODE_NOT_EDITABLE",
+        )
     for field in ("title", "language", "code_content"):
         if changes.get(field) is not None:
             setattr(submission, field, changes[field])

@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 
 class Submission(Base, TimestampMixin):
-    """A code assignment submitted by a user (pasted or uploaded)."""
+    """A code assignment submitted by a user (pasted, uploaded or fetched from a GitHub commit)."""
 
     __tablename__ = "submissions"
     __table_args__ = (sa.Index("ix_submissions_user_id_created_at", "user_id", "created_at"),)
@@ -33,6 +33,8 @@ class Submission(Base, TimestampMixin):
     language: Mapped[str] = mapped_column(sa.String(30), nullable=False)
     source_type: Mapped[SourceType] = mapped_column(enum_column_type(SourceType), nullable=False)
     code_content: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    #: Canonical origin URL (GitHub commit link) for ``github_commit`` submissions.
+    source_url: Mapped[str | None] = mapped_column(sa.String(500), nullable=True)
 
     user: Mapped[User] = relationship(back_populates="submissions")
     files: Mapped[list[SubmissionFile]] = relationship(

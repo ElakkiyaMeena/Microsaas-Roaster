@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Literal
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -97,6 +98,8 @@ class Settings(BaseSettings):
     OPENAI_TIMEOUT_SECONDS: float = 60.0
     OPENAI_MAX_OUTPUT_TOKENS: int = 3000
     ROASTS_PER_DAY: int = 10
+    #: Output language of roasts: "tanglish" (Tamil + English, Latin script) or "english".
+    ROAST_LANGUAGE: Literal["tanglish", "english"] = "tanglish"
 
     # Uploads
     UPLOAD_DIR: str = "./uploads"

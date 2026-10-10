@@ -29,3 +29,22 @@ Thumbs.db
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Frontend env
+frontend/.env
+
+# Python (extra)
+*.egg-info/
+.mypy_cache/
+coverage.xml
+*.db
+build/
+
+# Node / coverage (extra)
+coverage/
+.vite/
+npm-debug.log*
+*.tsbuildinfo
+
+# Docker
+docker-compose.override.yml

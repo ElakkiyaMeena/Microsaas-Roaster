@@ -25,3 +25,4 @@ class SourceType(str, enum.Enum):
     PASTE = "paste"
     UPLOAD = "upload"
     GITHUB_COMMIT = "github_commit"
+    GITHUB_REPO = "github_repo"

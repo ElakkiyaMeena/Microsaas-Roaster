@@ -12,6 +12,7 @@ import { getErrorStatus } from '../lib/errors';
 import { hasActivePendingRoast, PENDING_POLL_INTERVAL_MS } from '../lib/roastStatus';
 import type {
   CreateGithubCommitPayload,
+  CreateGithubPayload,
   CreateSubmissionPayload,
   Paginated,
   SubmissionDetail,
@@ -93,6 +94,22 @@ export function useCreateGithubCommitSubmission(): UseMutationResult<
   return useMutation({
     mutationFn: (payload: CreateGithubCommitPayload) =>
       submissionService.createFromGithubCommit(payload),
+    onSuccess: (created) => {
+      queryClient.setQueryData(submissionKeys.detail(created.id), created);
+      void queryClient.invalidateQueries({ queryKey: submissionKeys.lists() });
+    },
+  });
+}
+
+/** Create a submission from a public GitHub repository or commit URL (auto-detected). */
+export function useCreateGithubSubmission(): UseMutationResult<
+  SubmissionDetail,
+  unknown,
+  CreateGithubPayload
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateGithubPayload) => submissionService.createFromGithub(payload),
     onSuccess: (created) => {
       queryClient.setQueryData(submissionKeys.detail(created.id), created);
       void queryClient.invalidateQueries({ queryKey: submissionKeys.lists() });

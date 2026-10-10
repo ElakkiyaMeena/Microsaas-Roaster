@@ -33,7 +33,7 @@ class Submission(Base, TimestampMixin):
     language: Mapped[str] = mapped_column(sa.String(30), nullable=False)
     source_type: Mapped[SourceType] = mapped_column(enum_column_type(SourceType), nullable=False)
     code_content: Mapped[str] = mapped_column(sa.Text, nullable=False)
-    #: Canonical origin URL (GitHub commit link) for ``github_commit`` submissions.
+    #: Canonical origin URL (GitHub commit / repository link) for GitHub submissions.
     source_url: Mapped[str | None] = mapped_column(sa.String(500), nullable=True)
 
     user: Mapped[User] = relationship(back_populates="submissions")

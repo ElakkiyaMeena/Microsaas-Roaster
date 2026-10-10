@@ -35,15 +35,15 @@ import {
 } from '../components/submissions/formValidation';
 import { useAuth } from '../hooks/useAuth';
 import { useCreateRoast, useRoastQuota } from '../hooks/useRoasts';
-import { useCreateGithubCommitSubmission } from '../hooks/useSubmissions';
+import { useCreateGithubSubmission } from '../hooks/useSubmissions';
 import { getErrorCode, getErrorMessage, getErrorStatus } from '../lib/errors';
-import { shortCommitLabel, validateCommitUrl } from '../lib/github';
+import { parseGithubUrl, shortGithubLabel, validateGithubUrl } from '../lib/github';
 import type { Roast, RoastIntensity, SubmissionDetail } from '../types';
 
 type Phase = 'idle' | 'saving' | 'roasting' | 'done';
 
 interface FormErrors extends SubmissionFieldErrors {
-  commitUrl?: string;
+  githubUrl?: string;
 }
 
 interface FriendlyError {
@@ -56,10 +56,11 @@ const INITIAL_FIELDS: SubmissionFieldValues = { title: '', language: 'python', b
 /** Titles for known error codes; the message itself always comes from the backend `detail`. */
 const ERROR_TITLES: Record<string, string> = {
   INVALID_GITHUB_URL: 'That link doesn’t work',
+  GITHUB_REPO_NOT_FOUND: 'Repository not found',
   GITHUB_COMMIT_NOT_FOUND: 'Commit not found',
   GITHUB_RATE_LIMITED: 'GitHub is rate limiting us',
   GITHUB_UNAVAILABLE: 'GitHub is not responding',
-  NO_READABLE_FILES: 'Nothing to roast in that commit',
+  NO_READABLE_FILES: 'Nothing to roast there',
   ROAST_LIMIT_REACHED: 'Daily roast limit reached',
   AI_NOT_CONFIGURED: 'The roaster is offline',
 };
@@ -72,17 +73,20 @@ function toFriendlyError(err: unknown, fallbackTitle: string, fallbackMessage: s
   return { title, message: getErrorMessage(err, fallbackMessage) };
 }
 
-/** Roast a public GitHub commit: paste a link, pick a heat level, see the roast right here. */
+/**
+ * Roast a public GitHub repository or commit: paste a link, pick a heat level, see the roast
+ * right here. The backend auto-detects whether the link is a whole repo or a single commit.
+ */
 export default function GithubRoastPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const quota = useRoastQuota();
-  const createSubmission = useCreateGithubCommitSubmission();
+  const createSubmission = useCreateGithubSubmission();
   const createRoast = useCreateRoast();
   const moreOptions = useDisclosure({ defaultIsOpen: false });
   const resultRef = useRef<HTMLDivElement>(null);
 
-  const [commitUrl, setCommitUrl] = useState<string>('');
+  const [githubUrl, setGithubUrl] = useState<string>('');
   const [fields, setFields] = useState<SubmissionFieldValues>(INITIAL_FIELDS);
   const [autoLanguage, setAutoLanguage] = useState<boolean>(true);
   const [intensity, setIntensity] = useState<RoastIntensity>(user?.default_intensity ?? 'medium');
@@ -94,6 +98,8 @@ export default function GithubRoastPage() {
   const [roast, setRoast] = useState<Roast | null>(null);
 
   const busy = phase === 'saving' || phase === 'roasting';
+  const detected = parseGithubUrl(githubUrl);
+  const isCommitLink = detected?.kind === 'commit';
   const remaining = quota.data?.remaining;
   const outOfRoasts = remaining !== undefined && remaining <= 0;
 
@@ -120,7 +126,7 @@ export default function GithubRoastPage() {
       setRoast(created);
     } catch (err) {
       setRoastError(
-        toFriendlyError(err, 'Could not roast this commit', 'Could not roast this commit.'),
+        toFriendlyError(err, 'Could not roast this code', 'Could not roast this code.'),
       );
     }
     setPhase('done');
@@ -131,8 +137,8 @@ export default function GithubRoastPage() {
     if (busy) return;
     setSubmitError(null);
     const nextErrors: FormErrors = validateSubmissionFields(fields, { titleOptional: true });
-    const urlError = validateCommitUrl(commitUrl);
-    if (urlError) nextErrors.commitUrl = urlError;
+    const urlError = validateGithubUrl(githubUrl);
+    if (urlError) nextErrors.githubUrl = urlError;
     setErrors(nextErrors);
     if (Object.values(nextErrors).some(Boolean)) {
       if (nextErrors.title || nextErrors.brief) moreOptions.onOpen();
@@ -148,7 +154,7 @@ export default function GithubRoastPage() {
     let created: SubmissionDetail;
     try {
       created = await createSubmission.mutateAsync({
-        commit_url: commitUrl.trim(),
+        url: githubUrl.trim(),
         ...(title ? { title } : {}),
         ...(brief ? { assignment_brief: brief } : {}),
         language: autoLanguage ? null : fields.language,
@@ -156,11 +162,11 @@ export default function GithubRoastPage() {
     } catch (err) {
       const friendly = toFriendlyError(
         err,
-        'Could not fetch that commit',
-        'Could not fetch that commit.',
+        'Could not fetch that link',
+        'Could not fetch that GitHub link.',
       );
       if (getErrorCode(err) === 'INVALID_GITHUB_URL') {
-        setErrors((prev) => ({ ...prev, commitUrl: friendly.message }));
+        setErrors((prev) => ({ ...prev, githubUrl: friendly.message }));
       }
       setSubmitError(friendly);
       setPhase('idle');
@@ -171,7 +177,7 @@ export default function GithubRoastPage() {
   };
 
   const handleReset = (): void => {
-    setCommitUrl('');
+    setGithubUrl('');
     setFields(INITIAL_FIELDS);
     setAutoLanguage(true);
     setErrors({});
@@ -185,48 +191,67 @@ export default function GithubRoastPage() {
 
   const sourceUrl = submission?.source_url ?? null;
   const roastFailed = roast?.status === 'failed';
+  const sourceIsRepo = submission?.source_type === 'github_repo';
 
   return (
     <PageWrapper maxW="container.lg">
       <Stack spacing={2} mb={6}>
-        <TextReveal text="Commit-a kudu, roast pannrom 🔥" as="h1" size="xl" />
+        <TextReveal text="Repo-va kudu, roast pannrom 🔥" as="h1" size="xl" />
         <Text color="text.muted">
-          Paste a public GitHub commit link — we roast the diff and the commit message in Tanglish.
+          Paste a public GitHub repository or commit link — we roast the code in Tanglish.
         </Text>
       </Stack>
 
-      <form onSubmit={(e) => void handleSubmit(e)} noValidate aria-label="Roast a GitHub commit">
+      <form onSubmit={(e) => void handleSubmit(e)} noValidate aria-label="Roast a GitHub repository or commit">
         <Stack spacing={6}>
           <GlassCard hoverable={false}>
             <Stack spacing={5}>
               <AnimatedInput
-                id="commit-url"
-                name="commit_url"
+                id="github-url"
+                name="url"
                 type="url"
                 inputMode="url"
                 autoComplete="off"
                 spellCheck={false}
-                label="Commit link"
-                placeholder="https://github.com/owner/repo/commit/abc1234"
-                value={commitUrl}
+                label="GitHub link"
+                placeholder="https://github.com/owner/repo or .../commit/abc1234"
+                value={githubUrl}
                 onChange={(e) => {
                   const next = e.target.value;
-                  setCommitUrl(next);
-                  if (errors.commitUrl && !validateCommitUrl(next)) {
-                    setErrors((prev) => ({ ...prev, commitUrl: undefined }));
+                  setGithubUrl(next);
+                  if (errors.githubUrl && !validateGithubUrl(next)) {
+                    setErrors((prev) => ({ ...prev, githubUrl: undefined }));
                   }
                 }}
                 onBlur={() => {
-                  if (commitUrl.trim()) {
-                    setErrors((prev) => ({ ...prev, commitUrl: validateCommitUrl(commitUrl) }));
+                  if (githubUrl.trim()) {
+                    setErrors((prev) => ({ ...prev, githubUrl: validateGithubUrl(githubUrl) }));
                   }
                 }}
-                error={errors.commitUrl}
-                helperText="Public repositories only. We roast the diff and the commit message."
+                error={errors.githubUrl}
+                helperText="Public repositories only. Repo links roast a snapshot of the code; commit links roast the diff and message."
                 isRequired
                 isDisabled={busy}
                 maxLength={500}
               />
+              {detected && !errors.githubUrl && (
+                <HStack
+                  spacing={2}
+                  mt={-3}
+                  fontSize="sm"
+                  color="text.muted"
+                  data-testid="github-detected-kind"
+                  aria-live="polite"
+                >
+                  <FaGithub aria-hidden="true" />
+                  <Text as="span">
+                    {detected.kind === 'commit' ? 'Single commit: ' : 'Whole repository: '}
+                    <Text as="span" fontFamily="mono" color="brand.400">
+                      {shortGithubLabel(githubUrl.trim())}
+                    </Text>
+                  </Text>
+                </HStack>
+              )}
 
               <Box>
                 <ActionButton
@@ -247,7 +272,7 @@ export default function GithubRoastPage() {
                       onChange={handleFieldChange}
                       isDisabled={busy}
                       titleOptional
-                      titlePlaceholder="Defaults to the commit message"
+                      titlePlaceholder="Defaults to the repo name or commit message"
                       autoDetect={{ selected: autoLanguage, onSelect: setAutoLanguage }}
                     />
                   </Box>
@@ -281,7 +306,7 @@ export default function GithubRoastPage() {
             <Alert status="warning" borderRadius="xl">
               <AlertIcon />
               <AlertDescription>
-                You&apos;ve used all your roasts for today. The commit will still be saved so you can
+                You&apos;ve used all your roasts for today. The code will still be saved so you can
                 roast it tomorrow.
               </AlertDescription>
             </Alert>
@@ -303,9 +328,15 @@ export default function GithubRoastPage() {
               size="lg"
               leftIcon={<FaGithub />}
               isLoading={busy}
-              loadingText={phase === 'saving' ? 'Fetching commit…' : 'Roasting…'}
+              loadingText={
+                phase === 'saving'
+                  ? isCommitLink
+                    ? 'Fetching commit…'
+                    : 'Fetching repo…'
+                  : 'Roasting…'
+              }
             >
-              Roast this commit 🔥
+              {isCommitLink ? 'Roast this commit 🔥' : 'Roast this repo 🔥'}
             </GradientButton>
           </HStack>
         </Stack>
@@ -331,10 +362,10 @@ export default function GithubRoastPage() {
                     fontSize="sm"
                     fontFamily="mono"
                     color="brand.400"
-                    aria-label={`View commit ${shortCommitLabel(sourceUrl)} on GitHub`}
+                    aria-label={`View ${sourceIsRepo ? 'repository' : 'commit'} ${shortGithubLabel(sourceUrl)} on GitHub`}
                   >
                     <FaGithub aria-hidden="true" />
-                    {shortCommitLabel(sourceUrl)}
+                    {shortGithubLabel(sourceUrl)}
                   </Link>
                 )}
               </Stack>
@@ -349,8 +380,8 @@ export default function GithubRoastPage() {
                 <Box>
                   <AlertTitle>{roastError.title}</AlertTitle>
                   <AlertDescription>
-                    {roastError.message} The commit was saved — you can roast it again from its
-                    details page.
+                    {roastError.message} The {sourceIsRepo ? 'repository' : 'commit'} was saved —
+                    you can roast it again from its details page.
                   </AlertDescription>
                 </Box>
               </Alert>
@@ -393,7 +424,7 @@ export default function GithubRoastPage() {
                   leftIcon={<FiRotateCcw />}
                   onClick={handleReset}
                 >
-                  Roast another commit
+                  Roast another link
                 </ActionButton>
                 <GradientButton
                   rightIcon={<FiArrowRight />}

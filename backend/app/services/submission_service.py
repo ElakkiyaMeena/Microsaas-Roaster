@@ -15,6 +15,7 @@ from app.models.submission import Submission, SubmissionFile
 from app.schemas.common import Paginated
 from app.schemas.submission import (
     GitHubCommitSubmissionCreate,
+    GitHubSubmissionCreate,
     SubmissionCreate,
     SubmissionListItem,
     SubmissionUpdate,
@@ -233,21 +234,65 @@ async def create_github_commit_submission(
             502 ``GITHUB_UNAVAILABLE``.
     """
     ref = github_service.parse_commit_url(data.commit_url)
-    payload = await github_service.fetch_commit(ref)
-    content = github_service.build_commit_content(payload, ref)
+    return await _create_from_github(db, user_id, ref, data)
+
+
+async def create_github_submission(
+    db: Session, user_id: int, data: GitHubSubmissionCreate
+) -> Submission:
+    """
+    Create a submission from a public GitHub link, auto-detecting commit vs. whole repository.
+
+    Commit links behave exactly like ``create_github_commit_submission``. Repository links
+    (``https://github.com/{owner}/{repo}[/tree/{ref}]``) roast a snapshot of the repository
+    (structure plus selected files). Nothing is written to disk; no ``SubmissionFile`` rows.
+
+    Args:
+        db: Database session
+        user_id: Owner id
+        data: Validated request body (URL plus optional title / brief / language)
+
+    Returns:
+        The created submission with relationships loaded.
+
+    Raises:
+        BadRequestError: 400 ``INVALID_GITHUB_URL`` / ``NO_READABLE_FILES``.
+        AppException: 404 ``GITHUB_COMMIT_NOT_FOUND`` / ``GITHUB_REPO_NOT_FOUND``,
+            429 ``GITHUB_RATE_LIMITED``, 502 ``GITHUB_UNAVAILABLE``.
+    """
+    ref = github_service.parse_github_url(data.url)
+    return await _create_from_github(db, user_id, ref, data)
+
+
+async def _create_from_github(
+    db: Session,
+    user_id: int,
+    ref: github_service.CommitRef | github_service.RepoRef,
+    data: GitHubCommitSubmissionCreate | GitHubSubmissionCreate,
+) -> Submission:
+    """Fetch a commit or repository, build its content and persist the submission."""
+    content: github_service.CommitContent | github_service.RepoContent
+    if isinstance(ref, github_service.CommitRef):
+        payload = await github_service.fetch_commit(ref)
+        content = github_service.build_commit_content(payload, ref)
+        source_type = SourceType.GITHUB_COMMIT
+    else:
+        content = await github_service.fetch_repo_content(ref)
+        source_type = SourceType.GITHUB_REPO
     submission = Submission(
         user_id=user_id,
         title=data.title or content.title_default,
         assignment_brief=data.assignment_brief,
         language=data.language or content.language_guess,
-        source_type=SourceType.GITHUB_COMMIT,
+        source_type=source_type,
         source_url=content.canonical_url,
         code_content=content.code_content,
     )
     db.add(submission)
     db.commit()
     logger.info(
-        "Created github_commit submission id=%s user_id=%s files=%d",
+        "Created %s submission id=%s user_id=%s files=%d",
+        source_type.value,
         submission.id,
         user_id,
         content.file_count,
@@ -264,13 +309,13 @@ def update_submission(
     Raises:
         NotFoundError: 404 if missing or owned by another user.
         BadRequestError: 400 ``CODE_NOT_EDITABLE`` when changing code of a non-pasted
-            (uploaded or GitHub commit) submission.
+            (uploaded, GitHub commit or GitHub repository) submission.
     """
     submission = get_owned_submission(db, submission_id, user_id)
     changes = data.model_dump(exclude_unset=True)
     if "code_content" in changes and submission.source_type != SourceType.PASTE:
         raise BadRequestError(
-            "Code of uploaded or GitHub commit submissions cannot be edited",
+            "Code of uploaded or GitHub submissions cannot be edited",
             "CODE_NOT_EDITABLE",
         )
     for field in ("title", "language", "code_content"):

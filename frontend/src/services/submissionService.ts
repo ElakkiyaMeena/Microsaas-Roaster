@@ -2,6 +2,7 @@ import type { AxiosProgressEvent } from 'axios';
 import api from './api';
 import type {
   CreateGithubCommitPayload,
+  CreateGithubPayload,
   CreateSubmissionPayload,
   Paginated,
   SubmissionDetail,
@@ -67,6 +68,17 @@ export async function createFromGithubCommit(
   return data;
 }
 
+/**
+ * POST /submissions/github — fetch a public GitHub repository snapshot or commit server-side
+ * (the backend auto-detects which). Errors: 400 INVALID_GITHUB_URL / NO_READABLE_FILES,
+ * 404 GITHUB_REPO_NOT_FOUND / GITHUB_COMMIT_NOT_FOUND, 429 GITHUB_RATE_LIMITED,
+ * 502 GITHUB_UNAVAILABLE.
+ */
+export async function createFromGithub(payload: CreateGithubPayload): Promise<SubmissionDetail> {
+  const { data } = await api.post<SubmissionDetail>('/submissions/github', payload);
+  return data;
+}
+
 /** POST /submissions/upload — multipart upload of one or more files (or a zip). */
 export async function upload(
   payload: UploadSubmissionPayload,
@@ -91,7 +103,7 @@ export async function upload(
   return data;
 }
 
-/** PUT /submissions/{id}. `code_content` only allowed for paste submissions (not upload / github_commit). */
+/** PUT /submissions/{id}. `code_content` only allowed for paste submissions (not upload / github_commit / github_repo). */
 export async function update(
   id: number,
   payload: UpdateSubmissionPayload,
@@ -105,5 +117,14 @@ export async function remove(id: number): Promise<void> {
   await api.delete(`/submissions/${id}`);
 }
 
-const submissionService = { list, get, createPaste, createFromGithubCommit, upload, update, remove };
+const submissionService = {
+  list,
+  get,
+  createPaste,
+  createFromGithub,
+  createFromGithubCommit,
+  upload,
+  update,
+  remove,
+};
 export default submissionService;

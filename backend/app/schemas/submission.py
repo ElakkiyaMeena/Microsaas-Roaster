@@ -143,6 +143,42 @@ class GitHubCommitSubmissionCreate(BaseModel):
         return validate_language(value)
 
 
+class GitHubSubmissionCreate(BaseModel):
+    """Request body for creating a submission from a public GitHub repository or commit link."""
+
+    url: str = Field(max_length=MAX_URL_LENGTH)
+    title: str | None = None
+    assignment_brief: str | None = None
+    language: str | None = None
+
+    @field_validator("url")
+    @classmethod
+    def _check_url(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("URL must not be blank")
+        return stripped
+
+    @field_validator("title")
+    @classmethod
+    def _check_title(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        return validate_title(value)
+
+    @field_validator("assignment_brief")
+    @classmethod
+    def _check_brief(cls, value: str | None) -> str | None:
+        return validate_brief(value)
+
+    @field_validator("language")
+    @classmethod
+    def _check_language(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        return validate_language(value)
+
+
 class SubmissionUpdate(BaseModel):
     """Request body for partially updating a submission (all fields optional)."""
 

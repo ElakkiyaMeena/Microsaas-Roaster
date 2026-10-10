@@ -52,7 +52,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useCreateRoast, useRoastQuota } from '../hooks/useRoasts';
 import { useDeleteSubmission, useSubmission } from '../hooks/useSubmissions';
 import { getErrorCode, getErrorMessage, getErrorStatus } from '../lib/errors';
-import { shortCommitLabel } from '../lib/github';
+import { shortGithubLabel } from '../lib/github';
 import { hasActivePendingRoast, isRoastTimedOut, PENDING_POLL_INTERVAL_MS } from '../lib/roastStatus';
 import type { Roast, RoastIntensity } from '../types';
 import { getIntensityOption, getLanguageLabel } from '../types';
@@ -178,6 +178,8 @@ export default function SubmissionDetailPage() {
     roasts.find((r) => r.id === selectedRoastId) ?? roasts[0];
   const isRoasting = createRoast.isPending;
   const isGithubCommit = submission.source_type === 'github_commit';
+  const isGithubRepo = submission.source_type === 'github_repo';
+  const isGithub = isGithubCommit || isGithubRepo;
   const outOfRoasts = quota.data !== undefined && quota.data.remaining <= 0;
 
   const runRoast = async (roastIntensity: RoastIntensity): Promise<void> => {
@@ -236,12 +238,12 @@ export default function SubmissionDetailPage() {
               display="inline-flex"
               alignItems="center"
               gap={1}
-              colorScheme={isGithubCommit ? 'gray' : undefined}
+              colorScheme={isGithub ? 'gray' : undefined}
             >
-              {isGithubCommit && <FaGithub aria-hidden="true" />}
+              {isGithub && <FaGithub aria-hidden="true" />}
               {getSourceTypeLabel(submission.source_type)}
             </Badge>
-            {isGithubCommit && submission.source_url && (
+            {isGithub && submission.source_url && (
               <Link
                 href={submission.source_url}
                 isExternal
@@ -253,10 +255,10 @@ export default function SubmissionDetailPage() {
                 fontSize="sm"
                 fontFamily="mono"
                 color="brand.400"
-                aria-label={`View commit ${shortCommitLabel(submission.source_url)} on GitHub`}
+                aria-label={`View ${isGithubRepo ? 'repository' : 'commit'} ${shortGithubLabel(submission.source_url)} on GitHub`}
               >
                 <FaGithub aria-hidden="true" />
-                {shortCommitLabel(submission.source_url)}
+                {shortGithubLabel(submission.source_url)}
               </Link>
             )}
             <Text fontSize="sm" color="text.muted">
@@ -355,7 +357,7 @@ export default function SubmissionDetailPage() {
 
             <GlassCard hoverable={false}>
               <Heading as="h2" size="sm" mb={3}>
-                {isGithubCommit ? 'Commit diff' : 'Code'}
+                {isGithubCommit ? 'Commit diff' : isGithubRepo ? 'Repository snapshot' : 'Code'}
               </Heading>
               <CodeViewer
                 code={submission.code_content}

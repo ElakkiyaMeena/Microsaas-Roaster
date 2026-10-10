@@ -2,10 +2,16 @@ import { describe, expect, it } from 'vitest';
 import {
   COMMIT_URL_INVALID,
   COMMIT_URL_REQUIRED,
+  GITHUB_URL_INVALID,
+  GITHUB_URL_REQUIRED,
   isGithubCommitUrl,
+  isGithubUrl,
   parseGithubCommitUrl,
+  parseGithubUrl,
   shortCommitLabel,
+  shortGithubLabel,
   validateCommitUrl,
+  validateGithubUrl,
 } from '../../lib/github';
 import { classifyDiffLine } from '../../lib/diff';
 
@@ -84,5 +90,69 @@ describe('classifyDiffLine', () => {
     expect(classifyDiffLine('--- a/app.py')).toBe('meta');
     expect(classifyDiffLine('diff --git a/x b/x')).toBe('meta');
     expect(classifyDiffLine(' context')).toBe('context');
+  });
+});
+
+describe('parseGithubUrl', () => {
+  it.each([
+    ['https://github.com/octo/repo', { kind: 'repo', owner: 'octo', repo: 'repo' }],
+    ['https://github.com/octo/repo/', { kind: 'repo', owner: 'octo', repo: 'repo' }],
+    ['https://www.github.com/octo/repo', { kind: 'repo', owner: 'octo', repo: 'repo' }],
+    ['https://github.com/octo/repo.git', { kind: 'repo', owner: 'octo', repo: 'repo' }],
+    ['https://github.com/octo/my.repo_name?tab=readme', { kind: 'repo', owner: 'octo', repo: 'my.repo_name' }],
+    ['https://github.com/octo/repo#readme', { kind: 'repo', owner: 'octo', repo: 'repo' }],
+    ['https://github.com/octo/repo/tree/main', { kind: 'repo', owner: 'octo', repo: 'repo', ref: 'main' }],
+    [
+      'https://github.com/octo/repo/tree/feature/login-form/',
+      { kind: 'repo', owner: 'octo', repo: 'repo', ref: 'feature/login-form' },
+    ],
+    ['  https://github.com/octo/repo  ', { kind: 'repo', owner: 'octo', repo: 'repo' }],
+    [
+      `https://github.com/octo/repo/commit/${SHA40.toUpperCase()}`,
+      { kind: 'commit', owner: 'octo', repo: 'repo', sha: SHA40 },
+    ],
+    [
+      'https://github.com/octo/repo/pull/7/commits/abcdef1',
+      { kind: 'commit', owner: 'octo', repo: 'repo', sha: 'abcdef1' },
+    ],
+  ])('parses %s', (url, expected) => {
+    expect(parseGithubUrl(url)).toEqual(expected);
+  });
+
+  it.each([
+    '',
+    'https://github.com/octo',
+    'https://github.com/octo/',
+    'https://github.com/octo/repo/issues',
+    'https://github.com/octo/repo/issues/12',
+    'https://github.com/octo/repo/blob/main/app.py',
+    'https://github.com/octo/repo/pull/42',
+    'https://github.com/octo/repo/tree/',
+    'https://github.com/octo/repo/tree/../main',
+    'http://github.com/octo/repo',
+    'https://gitlab.com/octo/repo',
+    'https://github.com.evil.com/octo/repo',
+    'https://gist.github.com/octo/abcdef1234567',
+    'https://github.com/orgs/octo',
+    'https://github.com/octo/..',
+  ])('rejects %s', (url) => {
+    expect(parseGithubUrl(url)).toBeNull();
+    expect(isGithubUrl(url)).toBe(false);
+  });
+});
+
+describe('shortGithubLabel / validateGithubUrl', () => {
+  it('formats repo, ref and commit links', () => {
+    expect(shortGithubLabel('https://github.com/octo/repo.git')).toBe('octo/repo');
+    expect(shortGithubLabel('https://github.com/octo/repo/tree/dev')).toBe('octo/repo (dev)');
+    expect(shortGithubLabel(`https://github.com/octo/repo/commit/${SHA40}`)).toBe('octo/repo@0123456');
+    expect(shortGithubLabel('https://example.com/x')).toBe('https://example.com/x');
+  });
+
+  it('returns messages for empty and invalid values', () => {
+    expect(validateGithubUrl('  ')).toBe(GITHUB_URL_REQUIRED);
+    expect(validateGithubUrl('https://github.com/octo/repo/issues')).toBe(GITHUB_URL_INVALID);
+    expect(validateGithubUrl('https://github.com/octo/repo')).toBeUndefined();
+    expect(validateGithubUrl('https://github.com/octo/repo/commit/abc1234')).toBeUndefined();
   });
 });

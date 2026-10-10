@@ -118,12 +118,18 @@ function EditForm({ submission }: EditFormProps) {
           ) : (
             <Stack spacing={3}>
               <Heading as="h2" size="sm">
-                {submission.source_type === 'github_commit' ? 'Commit diff' : 'Code'}
+                {submission.source_type === 'github_commit'
+                  ? 'Commit diff'
+                  : submission.source_type === 'github_repo'
+                    ? 'Repository snapshot'
+                    : 'Code'}
               </Heading>
               <Text fontSize="sm" color="text.muted">
                 {submission.source_type === 'github_commit'
                   ? 'Code fetched from a GitHub commit can’t be edited. Push a new commit and roast that one instead.'
-                  : 'Code from uploaded files can’t be edited. Create a new submission to roast a different version.'}
+                  : submission.source_type === 'github_repo'
+                    ? 'Code fetched from a GitHub repository can’t be edited. Push your changes and roast the repo again.'
+                    : 'Code from uploaded files can’t be edited. Create a new submission to roast a different version.'}
               </Text>
               <CodeViewer
                 code={submission.code_content}

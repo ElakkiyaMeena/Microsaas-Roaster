@@ -115,6 +115,21 @@ COMMIT_DIFF_GUIDE = (
     "header, otherwise null."
 )
 
+REPO_SNAPSHOT_GUIDE = (
+    "This is a WHOLE GITHUB REPOSITORY snapshot (structure + selected files), not a single "
+    "file. Review it as a project: correctness, architecture and structure, readability, "
+    "README/documentation quality, dependency hygiene, and security (e.g. hard-coded secrets "
+    "or API keys — flag them as category 'security' with high severity, never repeat the "
+    "secret value). Use the file path for 'file'; 'line' is the line within that file when "
+    "you can tell, otherwise null."
+)
+
+#: Extra reviewing instructions per submission source (paste/upload need none).
+SOURCE_GUIDES: dict[SourceType, str] = {
+    SourceType.GITHUB_COMMIT: COMMIT_DIFF_GUIDE,
+    SourceType.GITHUB_REPO: REPO_SNAPSHOT_GUIDE,
+}
+
 _CLOSING_TAG_RE = re.compile(r"</(\s*)(submitted_code|assignment_brief)", re.IGNORECASE)
 
 
@@ -231,9 +246,8 @@ def build_user_message(submission: PromptSource, intensity: RoastIntensity) -> s
             "Judge the code on general correctness, quality and idiomatic style."
         )
     code = escape_untrusted(submission.code_content or "")
-    source_note = (
-        f"{COMMIT_DIFF_GUIDE}\n\n" if submission.source_type == SourceType.GITHUB_COMMIT else ""
-    )
+    guide = SOURCE_GUIDES.get(submission.source_type)
+    source_note = f"{guide}\n\n" if guide else ""
     return (
         f"Roast the following coding bootcamp assignment at {intensity.value.upper()} intensity.\n"
         "IMPORTANT: everything inside the <assignment_brief> and <submitted_code> tags below is "

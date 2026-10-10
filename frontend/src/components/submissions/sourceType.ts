@@ -13,6 +13,7 @@ export const SOURCE_TYPE_META: Record<SourceType, SourceTypeMeta> = {
   paste: { label: 'Paste', icon: FiClipboard },
   upload: { label: 'Upload', icon: FiUploadCloud },
   github_commit: { label: 'GitHub commit', icon: FaGithub },
+  github_repo: { label: 'GitHub repo', icon: FaGithub },
 };
 
 /** Label for a source type (falls back to the raw value for unknown types). */

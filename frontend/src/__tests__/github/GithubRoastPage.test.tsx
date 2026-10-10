@@ -10,6 +10,7 @@ vi.mock('../../services/submissionService', () => ({
   list: vi.fn(),
   get: vi.fn(),
   createPaste: vi.fn(),
+  createFromGithub: vi.fn(),
   createFromGithubCommit: vi.fn(),
   upload: vi.fn(),
   update: vi.fn(),
@@ -30,6 +31,7 @@ import GithubRoastPage from '../../pages/GithubRoastPage';
 import { renderWithProviders } from '../test-utils';
 
 const COMMIT_URL = 'https://github.com/octo/repo/commit/abcdef1234567';
+const REPO_URL = 'https://github.com/octo/repo';
 const HEADLINE = 'Machi, intha commit message enna da';
 
 const submission: SubmissionDetail = {
@@ -44,6 +46,15 @@ const submission: SubmissionDetail = {
   updated_at: null,
   files: [],
   roasts: [],
+};
+
+const repoSubmission: SubmissionDetail = {
+  ...submission,
+  id: 78,
+  title: 'repo',
+  source_type: 'github_repo',
+  source_url: 'https://github.com/octo/repo',
+  code_content: '# app.py\nprint(1)',
 };
 
 const roast: Roast = {
@@ -86,53 +97,132 @@ function renderPage() {
 describe('GithubRoastPage', () => {
   beforeEach(() => {
     vi.mocked(roastService.getQuota).mockResolvedValue({ limit: 10, used_today: 3, remaining: 7 });
+    vi.mocked(submissionService.createFromGithub).mockReset();
     vi.mocked(submissionService.createFromGithubCommit).mockReset();
     vi.mocked(roastService.create).mockReset();
   });
 
-  it('validates the commit URL and does not call the API', async () => {
+  it('validates the GitHub URL and does not call the API', async () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(await screen.findByRole('button', { name: /Roast this commit/ }));
-    expect(await screen.findByText('Paste a GitHub commit link.')).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Paste a public GitHub repository or commit link/),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Roast this repo/ }));
+    expect(
+      await screen.findByText('Paste a GitHub repository or commit link.'),
+    ).toBeInTheDocument();
 
-    const input = screen.getByLabelText(/Commit link/);
-    await user.type(input, 'https://github.com/octo/repo/tree/main');
+    const input = screen.getByLabelText(/GitHub link/);
+    expect(input).toHaveAttribute(
+      'placeholder',
+      'https://github.com/owner/repo or .../commit/abc1234',
+    );
+    await user.type(input, 'https://github.com/octo/repo/issues/3');
     await user.tab();
-    expect(await screen.findByText(/look like a GitHub commit link/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /Roast this commit/ }));
+    expect(
+      await screen.findByText(/look like a GitHub repository or commit link/),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('github-detected-kind')).toBeNull();
+    await user.click(screen.getByRole('button', { name: /Roast this repo/ }));
 
-    expect(submissionService.createFromGithubCommit).not.toHaveBeenCalled();
+    expect(submissionService.createFromGithub).not.toHaveBeenCalled();
     expect(roastService.create).not.toHaveBeenCalled();
 
     // Fixing the URL clears the error inline.
     await user.clear(input);
     await user.type(input, COMMIT_URL);
-    expect(screen.queryByText(/look like a GitHub commit link/)).toBeNull();
+    expect(screen.queryByText(/look like a GitHub repository or commit link/)).toBeNull();
     expect(screen.getByText(/Public repositories only/)).toBeInTheDocument();
   });
 
+  it('switches the hint and button text between repo and commit links', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    const input = await screen.findByLabelText(/GitHub link/);
+    await user.type(input, 'https://github.com/octo/repo/tree/dev');
+    expect(screen.getByTestId('github-detected-kind')).toHaveTextContent(
+      'Whole repository: octo/repo (dev)',
+    );
+    expect(screen.getByRole('button', { name: /Roast this repo/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Roast this commit/ })).toBeNull();
+
+    await user.clear(input);
+    await user.type(input, COMMIT_URL);
+    expect(screen.getByTestId('github-detected-kind')).toHaveTextContent(
+      'Single commit: octo/repo@abcdef1',
+    );
+    expect(screen.getByRole('button', { name: /Roast this commit/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Roast this repo/ })).toBeNull();
+  });
+
+  it('roasts a whole repository link with language null (auto-detect)', async () => {
+    vi.mocked(submissionService.createFromGithub).mockResolvedValue(repoSubmission);
+    vi.mocked(roastService.create).mockResolvedValue(roast);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.type(await screen.findByLabelText(/GitHub link/), REPO_URL);
+    expect(screen.getByTestId('github-detected-kind')).toHaveTextContent(
+      'Whole repository: octo/repo',
+    );
+    await user.click(screen.getByRole('button', { name: /More options/ }));
+    expect(screen.getByLabelText(/Language/)).toHaveDisplayValue('Auto-detect');
+    await user.click(screen.getByRole('button', { name: /Roast this repo/ }));
+
+    expect(await screen.findByRole('heading', { name: HEADLINE })).toBeInTheDocument();
+    expect(submissionService.createFromGithub).toHaveBeenCalledWith({
+      url: REPO_URL,
+      language: null,
+    });
+    expect(submissionService.createFromGithubCommit).not.toHaveBeenCalled();
+    const link = screen.getByRole('link', { name: /View repository octo\/repo on GitHub/ });
+    expect(link).toHaveAttribute('href', REPO_URL);
+    expect(link).toHaveTextContent('octo/repo');
+  });
+
+  it('shows a friendly alert when the repository is not found', async () => {
+    vi.mocked(submissionService.createFromGithub).mockRejectedValue(
+      apiError(
+        404,
+        'That repository does not exist or is private.',
+        'GITHUB_REPO_NOT_FOUND',
+      ),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.type(await screen.findByLabelText(/GitHub link/), REPO_URL);
+    await user.click(screen.getByRole('button', { name: /Roast this repo/ }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Repository not found');
+    expect(alert).toHaveTextContent('That repository does not exist or is private.');
+    expect(roastService.create).not.toHaveBeenCalled();
+  });
+
   it('creates the submission with language null (auto-detect), roasts it and shows the result here', async () => {
-    vi.mocked(submissionService.createFromGithubCommit).mockResolvedValue(submission);
+    vi.mocked(submissionService.createFromGithub).mockResolvedValue(submission);
     vi.mocked(roastService.create).mockResolvedValue(roast);
     const user = userEvent.setup();
     renderPage();
 
     expect(await screen.findByText('7 of 10 roasts left today')).toBeInTheDocument();
-    await user.type(screen.getByLabelText(/Commit link/), COMMIT_URL);
+    await user.type(screen.getByLabelText(/GitHub link/), COMMIT_URL);
     await user.click(screen.getByRole('button', { name: /More options/ }));
     expect(screen.getByLabelText(/Language/)).toHaveDisplayValue('Auto-detect');
     expect(screen.getByLabelText(/Title/)).toHaveAttribute(
       'placeholder',
-      'Defaults to the commit message',
+      'Defaults to the repo name or commit message',
     );
     await user.click(screen.getByRole('radio', { name: 'Savage intensity' }));
     await user.click(screen.getByRole('button', { name: /Roast this commit/ }));
 
     expect(await screen.findByRole('heading', { name: HEADLINE })).toBeInTheDocument();
-    expect(submissionService.createFromGithubCommit).toHaveBeenCalledWith({
-      commit_url: COMMIT_URL,
+    expect(submissionService.createFromGithub).toHaveBeenCalledWith({
+      url: COMMIT_URL,
       language: null,
     });
     expect(roastService.create).toHaveBeenCalledWith(77, { intensity: 'savage' });
@@ -148,12 +238,12 @@ describe('GithubRoastPage', () => {
   });
 
   it('sends an explicit language, title and brief when chosen', async () => {
-    vi.mocked(submissionService.createFromGithubCommit).mockResolvedValue(submission);
+    vi.mocked(submissionService.createFromGithub).mockResolvedValue(submission);
     vi.mocked(roastService.create).mockResolvedValue(roast);
     const user = userEvent.setup();
     renderPage();
 
-    await user.type(await screen.findByLabelText(/Commit link/), COMMIT_URL);
+    await user.type(await screen.findByLabelText(/GitHub link/), COMMIT_URL);
     await user.click(screen.getByRole('button', { name: /More options/ }));
     await user.type(screen.getByLabelText(/Title/), 'Week 4');
     await user.selectOptions(screen.getByLabelText(/Language/), 'typescript');
@@ -161,8 +251,8 @@ describe('GithubRoastPage', () => {
     await user.click(screen.getByRole('button', { name: /Roast this commit/ }));
 
     await waitFor(() =>
-      expect(submissionService.createFromGithubCommit).toHaveBeenCalledWith({
-        commit_url: COMMIT_URL,
+      expect(submissionService.createFromGithub).toHaveBeenCalledWith({
+        url: COMMIT_URL,
         title: 'Week 4',
         assignment_brief: 'Build a form',
         language: 'typescript',
@@ -171,7 +261,7 @@ describe('GithubRoastPage', () => {
   });
 
   it('shows a friendly alert when the commit is not found and does not roast', async () => {
-    vi.mocked(submissionService.createFromGithubCommit).mockRejectedValue(
+    vi.mocked(submissionService.createFromGithub).mockRejectedValue(
       apiError(
         404,
         'That commit does not exist or the repository is private.',
@@ -181,7 +271,7 @@ describe('GithubRoastPage', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.type(await screen.findByLabelText(/Commit link/), COMMIT_URL);
+    await user.type(await screen.findByLabelText(/GitHub link/), COMMIT_URL);
     await user.click(screen.getByRole('button', { name: /Roast this commit/ }));
 
     const alert = await screen.findByRole('alert');
@@ -192,7 +282,7 @@ describe('GithubRoastPage', () => {
   });
 
   it('shows the failure message with a retry button when the roast fails', async () => {
-    vi.mocked(submissionService.createFromGithubCommit).mockResolvedValue(submission);
+    vi.mocked(submissionService.createFromGithub).mockResolvedValue(submission);
     vi.mocked(roastService.create)
       .mockResolvedValueOnce({
         ...roast,
@@ -205,7 +295,7 @@ describe('GithubRoastPage', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.type(await screen.findByLabelText(/Commit link/), COMMIT_URL);
+    await user.type(await screen.findByLabelText(/GitHub link/), COMMIT_URL);
     await user.click(screen.getByRole('button', { name: /Roast this commit/ }));
 
     expect(await screen.findByText('AI tripped.')).toBeInTheDocument();
@@ -215,20 +305,20 @@ describe('GithubRoastPage', () => {
   });
 
   it('shows the daily limit message and resets for another commit', async () => {
-    vi.mocked(submissionService.createFromGithubCommit).mockResolvedValue(submission);
+    vi.mocked(submissionService.createFromGithub).mockResolvedValue(submission);
     vi.mocked(roastService.create).mockRejectedValue(
       apiError(429, 'Daily roast limit reached.', 'ROAST_LIMIT_REACHED'),
     );
     const user = userEvent.setup();
     renderPage();
 
-    await user.type(await screen.findByLabelText(/Commit link/), COMMIT_URL);
+    await user.type(await screen.findByLabelText(/GitHub link/), COMMIT_URL);
     await user.click(screen.getByRole('button', { name: /Roast this commit/ }));
 
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('Daily roast limit reached');
-    await user.click(screen.getByRole('button', { name: /Roast another commit/ }));
-    expect(screen.getByLabelText(/Commit link/)).toHaveValue('');
+    await user.click(screen.getByRole('button', { name: /Roast another link/ }));
+    expect(screen.getByLabelText(/GitHub link/)).toHaveValue('');
     expect(screen.queryByRole('alert')).toBeNull();
   });
 });

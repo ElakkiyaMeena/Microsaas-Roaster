@@ -8,6 +8,7 @@ vi.mock('../../services/submissionService', () => ({
   list: vi.fn(),
   get: vi.fn(),
   createPaste: vi.fn(),
+  createFromGithub: vi.fn(),
   createFromGithubCommit: vi.fn(),
   upload: vi.fn(),
   update: vi.fn(),
@@ -76,6 +77,29 @@ describe('SubmissionDetailPage for GitHub commits', () => {
     expect(screen.getByText('GitHub commit')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Commit diff' })).toBeInTheDocument();
     expect(screen.getByTestId('code-content').querySelector('[data-diff="add"]')).not.toBeNull();
+  });
+
+  it('shows the GitHub repo badge and repository link without diff colouring', async () => {
+    vi.mocked(submissionService.get).mockResolvedValue(
+      makeSubmission({
+        title: 'repo',
+        source_type: 'github_repo',
+        source_url: 'https://github.com/octo/repo',
+        code_content: '--- a/app.py\n+++ b/app.py\n+added = 1\n-removed = 2',
+      }),
+    );
+    renderPage();
+
+    const link = await screen.findByRole('link', {
+      name: /View repository octo\/repo on GitHub/,
+    });
+    expect(link).toHaveAttribute('href', 'https://github.com/octo/repo');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link.getAttribute('rel')).toContain('noopener');
+    expect(screen.getByText('GitHub repo')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Repository snapshot' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Commit diff' })).toBeNull();
+    expect(screen.getByTestId('code-content').querySelector('[data-diff]')).toBeNull();
   });
 
   it('shows no commit link or diff colouring for pasted code', async () => {

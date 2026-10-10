@@ -92,7 +92,7 @@ export default function DashboardPage() {
         />
       </SimpleGrid>
 
-      <GlassCard mb={10} aria-label="Roast a GitHub commit">
+      <GlassCard mb={10} aria-label="Roast a GitHub repo or commit">
         <Flex
           direction={{ base: 'column', sm: 'row' }}
           align={{ base: 'flex-start', sm: 'center' }}
@@ -103,10 +103,10 @@ export default function DashboardPage() {
             <Icon as={FaGithub} boxSize={10} color="brand.400" aria-hidden="true" />
             <Stack spacing={1}>
               <Heading as="h2" size="md">
-                Roast a GitHub commit
+                Roast a GitHub repo or commit
               </Heading>
               <Text color="text.muted">
-                Paste a public commit link and get the diff roasted in Tanglish.
+                Paste a public repository or commit link and get the code roasted in Tanglish.
               </Text>
             </Stack>
           </HStack>

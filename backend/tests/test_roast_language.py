@@ -17,6 +17,10 @@ def test_chennai_prompt_section(monkeypatch: pytest.MonkeyPatch) -> None:
     prompt = build_system_prompt(RoastIntensity.SAVAGE)
     assert "CHENNAI TANGLISH" in prompt
     assert "Madras bashai" in prompt
+    assert "Tamil-dominant" in prompt
+    # The JSON example is written in Chennai slang too, so the model copies that register.
+    assert "Chennai traffic maadiri" in prompt
+    assert "walks into a bar..." not in prompt
     assert "Never use Tamil script" in prompt
     assert "no Tamil or English profanity" in prompt
     assert "Reply ONLY with a single JSON object" in prompt
@@ -27,6 +31,7 @@ def test_tanglish_prompt_section(monkeypatch: pytest.MonkeyPatch) -> None:
     prompt = build_system_prompt(RoastIntensity.MEDIUM)
     assert "TANGLISH" in prompt
     assert "CHENNAI" not in prompt
+    assert "walks into a bar..." in prompt
     assert "no Tamil or English profanity" in prompt
 
 

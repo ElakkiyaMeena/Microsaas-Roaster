@@ -98,8 +98,12 @@ class Settings(BaseSettings):
     OPENAI_TIMEOUT_SECONDS: float = 60.0
     OPENAI_MAX_OUTPUT_TOKENS: int = 3000
     ROASTS_PER_DAY: int = 10
-    #: Output language of roasts: "tanglish" (Tamil + English, Latin script) or "english".
-    ROAST_LANGUAGE: Literal["tanglish", "english"] = "tanglish"
+    #: Output language of roasts: "chennai" (Madras Tamil slang in Latin script), "tanglish"
+    #: (Tamil + English, Latin script) or "english".
+    ROAST_LANGUAGE: Literal["chennai", "tanglish", "english"] = "chennai"
+    #: Who gets roasted: "coder" playfully teases the submitter's coding habits as well as the
+    #: code; "code" keeps the jokes strictly on the code.
+    ROAST_TARGET: Literal["coder", "code"] = "coder"
 
     # Uploads
     UPLOAD_DIR: str = "./uploads"

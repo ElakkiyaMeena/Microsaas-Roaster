@@ -397,7 +397,7 @@ def test_prompt_delimiters_and_escaping() -> None:
 
     assert [m["role"] for m in messages] == ["system", "user"]
     system, user_msg = messages[0]["content"], messages[1]["content"]
-    assert "never the person" in system
+    assert "No slurs, no profanity" in system
     assert "suggested_fix" in system
     assert "SAVAGE" in system
     assert "untrusted" in user_msg

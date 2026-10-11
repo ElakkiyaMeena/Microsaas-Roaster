@@ -1,0 +1,28 @@
+# VPS overlay: adds Caddy for HTTPS on ports 80/443 and hides the frontend's port 3000.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# Requires DOMAIN (plus SECRET_KEY, DB_PASSWORD, ...) in .env.
+services:
+  frontend:
+    ports: !reset []
+    expose:
+      - "8080"
+
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    depends_on:
+      - frontend
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env (e.g. roaster.example.com)}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

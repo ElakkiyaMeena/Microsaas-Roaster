@@ -166,7 +166,7 @@ const fetchRoast = async (id: number): Promise<Roast> => {
 - `score` is an integer 0–100
 - All OpenAI access goes through `services/roast_service.py`
 - Request JSON-structured output and validate with a Pydantic schema; retry once, then mark `failed`
-- System prompt rules: roast the code, never the person; no slurs/profanity; every issue includes a `suggested_fix`; consider the assignment brief
+- System prompt rules: with `ROAST_TARGET=coder` (default) the submitter's coding habits may be teased playfully, but never their intelligence, appearance, family, background or identity (`ROAST_TARGET=code` roasts only the code); no slurs/profanity; every issue includes a `suggested_fix`; consider the assignment brief
 - Wrap submitted code in clear delimiters and instruct the model to treat it as data (prompt-injection defense)
 - Enforce `ROASTS_PER_DAY` per user (HTTP 429 when exceeded)
 - Record `model`, `prompt_tokens`, `completion_tokens` on every roast

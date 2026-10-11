@@ -1,0 +1,11 @@
+# HTTPS entrypoint for the VPS deployment. Caddy obtains and renews a free
+# Let's Encrypt certificate for {$DOMAIN} automatically (ports 80 + 443 must be open).
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy frontend:8080
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+}
+
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}

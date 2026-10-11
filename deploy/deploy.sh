@@ -7,11 +7,18 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-COMPOSE=(docker compose -f docker-compose.yml -f docker-compose.prod.yml)
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "==> Installing Docker"
   curl -fsSL https://get.docker.com | sudo sh
+fi
+
+# Reuse an existing Traefik on 443 (e.g. Hostinger n8n template); otherwise run our own Caddy.
+if sudo ss -ltnp 2>/dev/null | grep -E ':443 ' | grep -q traefik; then
+  echo "==> Traefik detected on :443, routing through it"
+  COMPOSE=(docker compose -f docker-compose.yml -f docker-compose.traefik.yml)
+else
+  COMPOSE=(docker compose -f docker-compose.yml -f docker-compose.prod.yml)
 fi
 if [ "$(id -u)" -ne 0 ] && ! docker info >/dev/null 2>&1; then
   COMPOSE=(sudo "${COMPOSE[@]}")
@@ -69,5 +76,5 @@ for _ in $(seq 1 30); do
   sleep 5
 done
 echo "Not reachable yet. Check DNS (A record -> this server) and logs:"
-echo "  ${COMPOSE[*]} logs --tail=100 caddy backend"
+echo "  ${COMPOSE[*]} logs --tail=100"
 exit 1

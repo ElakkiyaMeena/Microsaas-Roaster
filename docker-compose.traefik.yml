@@ -1,0 +1,26 @@
+# VPS overlay for servers that already run Traefik on 80/443 (e.g. Hostinger's n8n template:
+# docker provider, "websecure" entrypoint, "letsencrypt" cert resolver). Use instead of
+# docker-compose.prod.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d --build
+# Requires DOMAIN (plus SECRET_KEY, DB_PASSWORD, ...) in .env.
+# The www router has its own certificate, so a missing www DNS record never blocks the main site.
+services:
+  frontend:
+    ports: !reset []
+    expose:
+      - "8080"
+    labels:
+      traefik.enable: "true"
+      traefik.http.services.assignment-roaster.loadbalancer.server.port: "8080"
+      traefik.http.routers.assignment-roaster.rule: "Host(`${DOMAIN}`)"
+      traefik.http.routers.assignment-roaster.entrypoints: websecure
+      traefik.http.routers.assignment-roaster.tls.certresolver: letsencrypt
+      traefik.http.routers.assignment-roaster.middlewares: assignment-roaster-hsts
+      traefik.http.middlewares.assignment-roaster-hsts.headers.stsSeconds: "31536000"
+      traefik.http.routers.assignment-roaster-www.rule: "Host(`www.${DOMAIN}`)"
+      traefik.http.routers.assignment-roaster-www.entrypoints: websecure
+      traefik.http.routers.assignment-roaster-www.tls.certresolver: letsencrypt
+      traefik.http.routers.assignment-roaster-www.middlewares: assignment-roaster-www
+      traefik.http.middlewares.assignment-roaster-www.redirectregex.regex: "^https://www\\.(.+)"
+      traefik.http.middlewares.assignment-roaster-www.redirectregex.replacement: "https://$${1}"
+      traefik.http.middlewares.assignment-roaster-www.redirectregex.permanent: "true"
